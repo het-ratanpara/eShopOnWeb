@@ -9,17 +9,14 @@ param environmentName string
 @description('Primary location for all resources')
 param location string
 
-// Optional parameters to override the default azd resource naming conventions. Update the main.parameters.json file to provide values. e.g.,:
-// "resourceGroupName": {
-//      "value": "myGroupName"
-// }
+// Optional parameters to override the default azd resource naming conventions.
 param resourceGroupName string = ''
 param webServiceName string = ''
 param catalogDatabaseName string = 'catalogDatabase'
 param catalogDatabaseServerName string = ''
 param identityDatabaseName string = 'identityDatabase'
 param identityDatabaseServerName string = ''
-param appServicePlanName string = ''
+param appServicePlanName string = ''  // kept but not used (we reference existing)
 param keyVaultName string = ''
 
 @description('Id of the user or app to assign application roles')
@@ -44,6 +41,12 @@ resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
   tags: tags
 }
 
+// Reference the existing App Service Plan (already created by the lab)
+resource appServicePlanExisting 'Microsoft.Web/serverfarms@2022-09-01' existing = {
+  name: 'appserviceplan-eshoponweb'   // hardcoded to the existing plan name
+  scope: rg
+}
+
 // The application frontend
 module web './core/host/appservice.bicep' = {
   name: 'web'
@@ -51,7 +54,7 @@ module web './core/host/appservice.bicep' = {
   params: {
     name: !empty(webServiceName) ? webServiceName : '${abbrs.webSitesAppService}web-${resourceToken}'
     location: location
-    appServicePlanId: appServicePlan.outputs.id
+    appServicePlanId: appServicePlanExisting.id  // use the existing plan's ID
     keyVaultName: keyVault.outputs.name
     runtimeName: 'dotnetcore'
     runtimeVersion: '8.0'
@@ -117,19 +120,11 @@ module keyVault './core/security/keyvault.bicep' = {
   }
 }
 
-// Create an App Service Plan to group applications under the same payment plan and SKU
-module appServicePlan './core/host/appserviceplan.bicep' = {
-  name: 'appserviceplan'
-  scope: rg
-  params: {
-    name: !empty(appServicePlanName) ? appServicePlanName : '${abbrs.webServerFarms}${resourceToken}'
-    location: location
-    tags: tags
-    sku: {
-      name: 'B1'
-    }
-  }
-}
+// ============================================================
+// REMOVED: App Service Plan creation module (blocked by policy)
+// The policy does not allow creating new App Service Plans.
+// We now reference the existing plan (appserviceplan-eshoponweb)
+// ============================================================
 
 // Data outputs
 output AZURE_SQL_CATALOG_CONNECTION_STRING_KEY string = catalogDb.outputs.connectionStringKey
